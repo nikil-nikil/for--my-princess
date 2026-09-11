@@ -675,9 +675,11 @@ button{
     height:120px;
     border-radius:50%;
     background:#fff7df;
-    right:13%;
-    top:35px;
+    left:50%;
+    top:calc(25% - 60px);
+    transform:translateX(-50%);
     box-shadow:0 0 60px rgba(255,247,220,.5);
+    z-index:2;
 }
 
 .stars{
@@ -2619,6 +2621,7 @@ button{
     .moon{
         width:80px;
         height:80px;
+        top:calc(25% - 40px);
     }
 
     .princess,
@@ -2794,6 +2797,19 @@ button{
 </head>
 
 <body>
+
+<!-- =========================================================
+     BACKGROUND SONG
+     Keep song.mp3 in the same folder as this HTML file.
+========================================================= -->
+<audio
+    id="backgroundMusic"
+    preload="auto"
+    loop
+    playsinline
+>
+    <source src="song.mp3" type="audio/mpeg">
+</audio>
 
 <!-- =========================================================
      LOADER
@@ -5232,27 +5248,7 @@ function celebrate(){
    PARALLAX
 ========================================================= */
 
-window.addEventListener(
-    "scroll",
-    ()=>{
-
-        const scrollY=
-            window.scrollY;
-
-        const moon=
-            document.querySelector(
-                ".moon"
-            );
-
-        if(moon){
-
-            moon.style.transform=
-                `translateY(${scrollY*.03}px)`;
-
-        }
-
-    }
-);
+/* Moon is fixed in the sky — no scroll/parallax movement. */
 
 /* =========================================================
    ACTIVE NAV
@@ -5301,149 +5297,100 @@ pages.forEach(page=>
 );
 
 /* =========================================================
-   SIMPLE MUSIC ENGINE
+   REAL BACKGROUND SONG ENGINE
+   Music is controlled ONLY by the ♫ button.
+   Click ♫ once = play.
+   Click ♫ again = pause. Click ♫ again = resume.
+   The song loops while it is playing, and resumes from the same position after pausing.
+   Put song.mp3 in the same folder as this HTML file.
 ========================================================= */
 
-let audioContext=null;
-let musicOn=false;
-let musicTimer=null;
+const backgroundMusic =
+    document.getElementById("backgroundMusic");
 
-const soundBtn=
-    document.getElementById(
-        "soundBtn"
-    );
+const soundBtn =
+    document.getElementById("soundBtn");
 
-function playTone(){
+/* Music starts OFF. No autoplay and no other page click starts it. */
+if(backgroundMusic){
+    backgroundMusic.loop = true;
+    backgroundMusic.volume = 0.45;
+    backgroundMusic.pause();
+    backgroundMusic.currentTime = 0;
+}
 
-    if(!musicOn)
+function updateMusicButton(isPlaying){
+
+    if(!soundBtn)
         return;
 
-    if(!audioContext){
+    soundBtn.innerHTML = isPlaying ? "×" : "♫";
 
-        audioContext=
-            new (
-                window.AudioContext ||
-                window.webkitAudioContext
-            )();
-
-    }
-
-    const notes=[
-        261.63,
-        329.63,
-        392,
-        523.25
-    ];
-
-    const oscillator=
-        audioContext.createOscillator();
-
-    const gain=
-        audioContext.createGain();
-
-    oscillator.type="sine";
-
-    oscillator.frequency.value=
-        notes[
-            Math.floor(
-                Math.random()*
-                notes.length
-            )
-        ];
-
-    gain.gain.setValueAtTime(
-        .0001,
-        audioContext.currentTime
+    soundBtn.setAttribute(
+        "aria-label",
+        isPlaying
+            ? "Stop background music"
+            : "Play background music"
     );
 
-    gain.gain.exponentialRampToValueAtTime(
-        .045,
-        audioContext.currentTime+.04
-    );
-
-    gain.gain.exponentialRampToValueAtTime(
-        .0001,
-        audioContext.currentTime+.8
-    );
-
-    oscillator.connect(gain);
-
-    gain.connect(
-        audioContext.destination
-    );
-
-    oscillator.start();
-
-    oscillator.stop(
-        audioContext.currentTime+.8
+    soundBtn.setAttribute(
+        "title",
+        isPlaying
+            ? "Stop music"
+            : "Play music"
     );
 
 }
 
-if(soundBtn){
+/* Initial state: music stopped */
+updateMusicButton(false);
+
+/* ONLY the music button controls the music */
+if(soundBtn && backgroundMusic){
 
     soundBtn.addEventListener(
         "click",
-        async()=>{
+        async(e)=>{
 
-            if(!audioContext){
+            /* Do not allow this click to trigger any other
+               document click interactions. */
+            e.preventDefault();
+            e.stopPropagation();
 
-                audioContext=
-                    new (
-                        window.AudioContext ||
-                        window.webkitAudioContext
-                    )();
+            if(backgroundMusic.paused){
 
-            }
-
-            if(
-                audioContext.state===
-                "suspended"
-            ){
-
-                await audioContext.resume();
-
-            }
-
-            musicOn=!musicOn;
-
-            soundBtn.innerHTML=
-                musicOn
-                    ?"♫"
-                    :"×";
-
-            if(musicOn){
-
-                playTone();
-
-                if(musicTimer){
-                    clearInterval(
-                        musicTimer
-                    );
+                try{
+                    await backgroundMusic.play();
+                    updateMusicButton(true);
+                }catch(error){
+                    console.log("Music could not start:",error);
+                    updateMusicButton(false);
                 }
-
-                musicTimer=
-                    setInterval(
-                        playTone,
-                        950
-                    );
 
             }else{
 
-                if(musicTimer){
-
-                    clearInterval(
-                        musicTimer
-                    );
-
-                    musicTimer=null;
-
-                }
+                /* Pause only.
+                   DO NOT reset currentTime.
+                   The next click will resume from exactly
+                   where the song was paused. */
+                backgroundMusic.pause();
+                updateMusicButton(false);
 
             }
 
         }
     );
+
+    /* Keep the icon correct if the audio ends/errors unexpectedly. */
+    backgroundMusic.addEventListener("pause",()=>{
+        if(backgroundMusic.currentTime === 0 || backgroundMusic.ended){
+            updateMusicButton(false);
+        }
+    });
+
+    backgroundMusic.addEventListener("play",()=>{
+        updateMusicButton(true);
+    });
 
 }
 
